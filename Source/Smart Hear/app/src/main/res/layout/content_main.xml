@@ -18,11 +18,15 @@
 
         android:layout_height="wrap_content"
 
-        android:layout_marginTop="10dp"
+        android:text="Smart Hear"
 
-        android:text="Recording Point: -"
-
-        android:textAppearance="?android:attr/textAppearanceMedium" />
+        android:textAppearance="?android:attr/textAppearanceMedium"
+        android:layout_alignParentTop="true"
+        android:layout_centerHorizontal="true"
+        android:textStyle="bold|italic"
+        android:contextClickable="false"
+        android:textColor="#36439a"
+        android:textSize="@dimen/abc_text_size_headline_material" />
 
     <ImageView
 
@@ -32,13 +36,9 @@
 
         android:layout_height="60dp"
 
+        android:src="@android:drawable/presence_audio_online"
         android:layout_below="@+id/text1"
-
-        android:layout_centerHorizontal="true"
-
-        android:layout_marginTop="20dp"
-
-        android:src="@android:drawable/presence_audio_online" />
+        android:layout_centerHorizontal="true" />
 
     <LinearLayout
         android:id="@+id/linear1"
@@ -52,30 +52,6 @@
         android:layout_marginTop="10dp"
 
         android:orientation="horizontal">
-
-        <Button
-
-            android:id="@+id/btn_Start"
-
-            android:layout_width="wrap_content"
-
-            android:layout_height="wrap_content"
-
-            android:text="start" />
-
-        <Button
-
-            android:id="@+id/btn_Stop"
-
-            android:layout_width="wrap_content"
-
-            android:layout_height="wrap_content"
-
-            android:layout_marginLeft="10dp"
-
-            android:enabled="false"
-
-            android:text="stop" />
 
     </LinearLayout>
 
@@ -104,7 +80,8 @@
             android:enabled="false"
 
             android:text="play"
-            android:onClick="playRecoderedAudio" />
+            android:onClick="playRecoderedAudio"
+            android:visibility="gone" />
 
         <Button
 
@@ -117,9 +94,86 @@
 
             android:enabled="false"
 
-            android:text="stop playing" />
+            android:text="stop playing"
+            android:visibility="gone" />
 
     </LinearLayout>
+
+    <LinearLayout
+        android:orientation="horizontal"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_centerVertical="true"
+        android:layout_alignParentStart="true"
+        android:id="@+id/linear3">
+
+    </LinearLayout>
+
+    <LinearLayout
+        android:orientation="horizontal"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_below="@+id/linear3"
+        android:layout_alignParentStart="true"
+        android:id="@+id/linear4"
+        android:touchscreenBlocksFocus="false"
+        android:visibility="gone">
+
+        <SeekBar
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:id="@+id/seekBar_bandPass" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:orientation="horizontal"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_below="@+id/linear4"
+        android:layout_alignParentStart="true"
+        android:id="@+id/linear5" />
+
+    <SeekBar
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:id="@+id/seekBar_highPass"
+        android:layout_below="@+id/linear5"
+        android:layout_alignParentStart="true" />
+
+    <Button
+
+        android:id="@+id/btn_Start"
+
+        android:layout_width="wrap_content"
+
+        android:layout_height="wrap_content"
+
+        android:text="start"
+        android:layout_below="@+id/linear2"
+        android:layout_toStartOf="@+id/micImage" />
+
+    <Button
+
+        android:id="@+id/btn_Stop"
+
+        android:layout_width="wrap_content"
+
+        android:layout_height="wrap_content"
+
+        android:layout_marginLeft="10dp"
+
+        android:enabled="false"
+
+        android:text="stop"
+        android:layout_alignTop="@+id/linear2"
+        android:layout_toEndOf="@+id/micImage" />
+
+    <SeekBar
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:id="@+id/seekbar_lowPass"
+        android:layout_above="@+id/linear3"
+        android:layout_alignParentEnd="true" />
 
 
 </RelativeLayout>

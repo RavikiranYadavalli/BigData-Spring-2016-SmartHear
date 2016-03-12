@@ -5,6 +5,7 @@ import android.media.AudioManager;
 import android.media.AudioRecord;
 import android.media.AudioTrack;
 import android.media.MediaRecorder;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.support.v7.app.AppCompatActivity;
@@ -12,6 +13,8 @@ import android.util.Log;
 import android.view.KeyEvent;
 import android.view.View;
 import android.widget.Button;
+import android.widget.SeekBar;
+import android.widget.Toast;
 
 import java.io.DataInputStream;
 import java.io.File;
@@ -19,6 +22,10 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+
+import ddf.minim.effects.BandPass;
+import ddf.minim.effects.HighPassSP;
+import ddf.minim.effects.LowPassFS;
 
 public class MainActivity extends AppCompatActivity {
     //    private static final int RECORDER_SAMPLERATE = 8000;
@@ -29,7 +36,7 @@ public class MainActivity extends AppCompatActivity {
     private static final String AUDIO_RECORDER_FOLDER = "AudioRecorder";
     private static final String AUDIO_RECORDER_TEMP_FILE = "record_temp.raw";
     private static final int RECORDER_SAMPLERATE = 44100;
-    private static final int RECORDER_CHANNELS = AudioFormat.CHANNEL_CONFIGURATION_MONO;
+    private static final int RECORDER_CHANNELS = AudioFormat.CHANNEL_IN_MONO;
     private static final int RECORDER_AUDIO_ENCODING = AudioFormat.ENCODING_PCM_16BIT;
     short[] audioData;
     public AudioTrack m_track;
@@ -44,6 +51,14 @@ public class MainActivity extends AppCompatActivity {
     private double[] absNormalizedSignal;
     public int mPeakPos;
     public String savedFileName;
+    public float[] floatData;
+    BandPass bandpass;
+    private SeekBar seekBarForLowPass;
+    private SeekBar seekBarForHighPass;
+    public int lowFrequencyValue = 0;
+    public int highFrequencyValue = 0;
+    public int passFilterFlag = 0;
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -51,14 +66,67 @@ public class MainActivity extends AppCompatActivity {
 
         setButtonHandlers();
         enableButtons(false);
-
+        int maxFrequencyLimit = 13000;
         bufferSize = AudioRecord.getMinBufferSize
                 (RECORDER_SAMPLERATE, RECORDER_CHANNELS, RECORDER_AUDIO_ENCODING) * 3;
-
         audioData = new short[bufferSize]; //short array that pcm data is put into.
+        seekBarForLowPass = (SeekBar) findViewById(R.id.seekbar_lowPass);
+        seekBarForLowPass.setMax(maxFrequencyLimit);
+        seekBarForLowPass.setOnSeekBarChangeListener(this.seekBarEventLister);
+        seekBarForHighPass = (SeekBar) findViewById(R.id.seekBar_highPass);
+        seekBarForHighPass.setMax(maxFrequencyLimit);
+        seekBarForHighPass.setOnSeekBarChangeListener(this.seekBarEventLister);
+
 
     }
 
+    public SeekBar.OnSeekBarChangeListener seekBarEventLister = new SeekBar.OnSeekBarChangeListener() {
+
+        int frequency = 0;
+
+        @Override
+        public void onProgressChanged(SeekBar seekBar, int progresValue, boolean fromUser) {
+            frequency = progresValue;
+            switch (seekBar.getId()) {
+                case R.id.seekbar_lowPass:
+                    lowFrequencyValue = progresValue;
+                    Log.d("Low freq value: ", Long.toString(lowFrequencyValue));
+                    if ((passFilterFlag == 2 || passFilterFlag == 3) && highFrequencyValue != 0) {
+                        passFilterFlag = 3;
+                    } else
+                        passFilterFlag = 1;
+                    break;
+                case R.id.seekBar_highPass:
+                    highFrequencyValue = progresValue;
+                    Log.d("High freq value: ", Long.toString(highFrequencyValue));
+                    if (passFilterFlag == 1 || passFilterFlag == 3) {
+
+                        passFilterFlag = 3;
+                    } else
+                        passFilterFlag = 2;
+                    break;
+                default:
+                    lowFrequencyValue = progresValue;
+                    break;
+
+            }
+
+           // Toast.makeText(getApplicationContext(), "Changing seekbar's progress", Toast.LENGTH_SHORT).show();
+        }
+
+        @Override
+        public void onStartTrackingTouch(SeekBar seekBar) {
+            Toast.makeText(getApplicationContext(), "Started tracking seekbar", Toast.LENGTH_SHORT).show();
+        }
+
+        @Override
+        public void onStopTrackingTouch(SeekBar seekBar) {
+
+            Log.d("SeekBar value", String.valueOf(frequency));
+            Toast.makeText(getApplicationContext(), "Stopped tracking seekbar", Toast.LENGTH_SHORT).show();
+
+        }
+    };
 
     private void setButtonHandlers() {
         ((Button) findViewById(R.id.btn_Start)).setOnClickListener(btnClick);
@@ -83,7 +151,7 @@ public class MainActivity extends AppCompatActivity {
         if (!file.exists()) {
             file.mkdirs();
         }
-        savedFileName= file.getAbsolutePath() + "/" + System.currentTimeMillis()
+        savedFileName = file.getAbsolutePath() + "/" + System.currentTimeMillis()
                 + AUDIO_RECORDER_FILE_EXT_WAV;
         return (savedFileName);
     }
@@ -148,16 +216,54 @@ public class MainActivity extends AppCompatActivity {
         recordingThread = new Thread(new Runnable() {
 
             public void run() {
-                writeAudioDataToFile();
+                // writeAudioDataToFile();
+
+                m_track = new AudioTrack(AudioManager.STREAM_ALARM, RECORDER_SAMPLERATE,
+                        AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_FLOAT,
+                        bufferSize, AudioTrack.MODE_STREAM);
+                m_track.setPlaybackRate(RECORDER_SAMPLERATE);
+                int read = 0;
+                short shortData[] = new short[bufferSize];
+                byte[] data = new byte[bufferSize];
+                m_track.play();
+                while (isRecording) {
+                    read = recorder.read(shortData, 0, bufferSize);
+                    if (read > 0) {
+                        floatData = shortToFloat(shortData);
+                        //  Log.d("Frequency data",floatData.toString());
+//                       bandpass = new BandPass(400, 2, 2500);
+//                        bandpass.process( floatData);
+                        if (passFilterFlag != 0 && passFilterFlag == 2) {
+                            HighPassSP hp = new HighPassSP(highFrequencyValue, 2);
+                            hp.process(floatData);
+                        } else if (passFilterFlag != 0 && passFilterFlag == 1) {
+                            LowPassFS lp = new LowPassFS(lowFrequencyValue, 2);
+                            lp.process(floatData);
+                        } else if (passFilterFlag != 0 && passFilterFlag == 3) {
+//                            BandPass bp = new BandPass(lowFrequencyValue, 2, highFrequencyValue);
+//                            bp.process(floatData);
+                            bandpass = new BandPass(100, 2, 2500);
+                            bandpass.process(floatData);
+                        }
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                            m_track.write(floatData, 0, bufferSize, AudioTrack.WRITE_NON_BLOCKING);
+
+                        }
+                    }
+                }
+
             }
         }, "AudioRecorder Thread");
 
         recordingThread.start();
+
+
     }
 
     private void writeAudioDataToFile() {
 
         byte data[] = new byte[bufferSize];
+        short shortData[] = new short[bufferSize];
         String filename = getTempFilename();
         FileOutputStream os = null;
 
@@ -171,9 +277,15 @@ public class MainActivity extends AppCompatActivity {
         int read = 0;
         if (null != os) {
             while (isRecording) {
-                read = recorder.read(data, 0, bufferSize);
+                read = recorder.read(shortData, 0, bufferSize);
+                //  read = recorder.read(data,0,bufferSize);
+
                 if (read > 0) {
-                    absNormalizedSignal = calculateFFT(data); // --> HERE ^__^
+                    // absNormalizedSignal = calculateFFT(data); // --> HERE ^__^
+                    floatData = shortToFloat(shortData);
+                    bandpass = new BandPass(25000, 2, 44100);
+                    bandpass.process(floatData);
+                    bandpass.printCoeff();
                 }
 
                 if (AudioRecord.ERROR_INVALID_OPERATION != read) {
@@ -316,7 +428,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void playRecoderedAudio(View v) {
-       m_track = new AudioTrack(AudioManager.STREAM_MUSIC, RECORDER_SAMPLERATE,
+        m_track = new AudioTrack(AudioManager.STREAM_MUSIC, RECORDER_SAMPLERATE,
                 AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT,
                 bufferSize, AudioTrack.MODE_STREAM);
         String filepath = Environment.getExternalStorageDirectory().getAbsolutePath();
@@ -328,7 +440,7 @@ public class MainActivity extends AppCompatActivity {
             DataInputStream dis = new DataInputStream(fin);
 
             m_track.play();
-            while((i = dis.read(s, 0, bufferSize)) > -1){
+            while ((i = dis.read(s, 0, bufferSize)) > -1) {
                 m_track.write(s, 0, i);
 
             }
@@ -346,5 +458,34 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    private float[] shortToFloat(short[] audio) {
+        Log.d("SHORTTOFLOAT", "INSIDE SHORTTOFLOAT");
+        float[] converted = new float[audio.length];
+
+        for (int i = 0; i < converted.length; i++) {
+            // [-32768,32768] -> [-1,1]
+            converted[i] = audio[i] / 32768f; /* default range for Android PCM audio buffers) */
+
+        }
+
+        return converted;
+    }
+
+    private float[] byteToFloat(byte[] audio) {
+        return shortToFloat(byteToShort(audio));
+    }
+
+    public short[] byteToShort(byte[] rawdata) {
+        short[] converted = new short[rawdata.length / 2];
+        Integer temp;
+        for (int i = 0; i < converted.length; i++) {
+            // Wave file data are stored in little-endian order
+            short lo = rawdata[2 * i];
+            short hi = rawdata[2 * i + 1];
+            temp = new Integer(((hi & 0xFF) << 8) | (lo & 0xFF));
+            converted[i] = temp.shortValue();
+        }
+        return converted;
+    }
 
 }
