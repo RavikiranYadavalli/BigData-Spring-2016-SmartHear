@@ -41,83 +41,70 @@
         android:layout_centerHorizontal="true" />
 
     <LinearLayout
-        android:id="@+id/linear1"
-
+        android:orientation="horizontal"
         android:layout_width="match_parent"
-
         android:layout_height="wrap_content"
-
         android:layout_below="@+id/micImage"
-
-        android:layout_marginTop="10dp"
-
-        android:orientation="horizontal">
-
-    </LinearLayout>
-
-    <LinearLayout
-        android:id="@+id/linear2"
-
-        android:layout_width="match_parent"
-
-        android:layout_height="wrap_content"
-
-        android:layout_below="@+id/linear1"
-
-        android:layout_marginTop="10dp"
-
-        android:orientation="horizontal">
-
-
-        <Button
-
-            android:id="@+id/btn_Play"
-
-            android:layout_width="wrap_content"
-
-            android:layout_height="wrap_content"
-
-            android:enabled="false"
-
-            android:text="play"
-            android:onClick="playRecoderedAudio"
-            android:visibility="gone" />
-
-        <Button
-
-            android:id="@+id/stopPlay"
-
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-
-            android:layout_marginLeft="10dp"
-
-            android:enabled="false"
-
-            android:text="stop playing"
-            android:visibility="gone" />
-
-    </LinearLayout>
-
-    <LinearLayout
-        android:orientation="horizontal"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_centerVertical="true"
         android:layout_alignParentStart="true"
-        android:id="@+id/linear3">
+        android:id="@+id/linearLayout">
 
+        <Button
+
+            android:id="@+id/btn_Start"
+
+            android:layout_width="wrap_content"
+
+            android:layout_height="wrap_content"
+
+            android:text="start"
+            android:layout_toStartOf="@+id/micImage"
+            android:layout_below="@+id/micImage"
+            android:layout_marginLeft="20dp" />
+
+        <Button
+
+            android:id="@+id/btn_Stop"
+
+            android:layout_width="wrap_content"
+
+            android:layout_height="wrap_content"
+
+            android:layout_marginLeft="110dp"
+
+            android:enabled="false"
+
+            android:text="stop"
+            android:layout_toEndOf="@+id/micImage"
+            android:layout_below="@+id/micImage" />
     </LinearLayout>
 
     <LinearLayout
         android:orientation="horizontal"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_below="@+id/linear3"
+        android:id="@+id/linear3"
+        android:layout_marginTop="43dp"
+        android:layout_below="@+id/linearLayout"
+        android:layout_alignParentStart="true">
+
+        <SeekBar
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:id="@+id/seekbar_lowPass"
+            android:layout_above="@+id/linear3"
+            android:layout_alignParentEnd="true" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:orientation="horizontal"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
         android:layout_alignParentStart="true"
         android:id="@+id/linear4"
         android:touchscreenBlocksFocus="false"
-        android:visibility="gone">
+        android:visibility="visible"
+        android:layout_below="@+id/linear3"
+        android:layout_alignParentLeft="true">
 
         <SeekBar
             android:layout_width="match_parent"
@@ -129,51 +116,38 @@
         android:orientation="horizontal"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_below="@+id/linear4"
         android:layout_alignParentStart="true"
-        android:id="@+id/linear5" />
+        android:id="@+id/linear5"
+        android:layout_below="@+id/linear4"
+        android:layout_alignParentLeft="true">
 
-    <SeekBar
+        <SeekBar
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:id="@+id/seekBar_highPass"
+            android:layout_below="@+id/linear5"
+            android:layout_alignParentStart="true" />
+
+    </LinearLayout>
+
+    <LinearLayout
+        android:orientation="horizontal"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:id="@+id/seekBar_highPass"
+        android:layout_marginTop="31dp"
         android:layout_below="@+id/linear5"
-        android:layout_alignParentStart="true" />
+        android:layout_alignParentStart="true"
+        android:id="@+id/linear6">
 
-    <Button
-
-        android:id="@+id/btn_Start"
-
-        android:layout_width="wrap_content"
-
-        android:layout_height="wrap_content"
-
-        android:text="start"
-        android:layout_below="@+id/linear2"
-        android:layout_toStartOf="@+id/micImage" />
-
-    <Button
-
-        android:id="@+id/btn_Stop"
-
-        android:layout_width="wrap_content"
-
-        android:layout_height="wrap_content"
-
-        android:layout_marginLeft="10dp"
-
-        android:enabled="false"
-
-        android:text="stop"
-        android:layout_alignTop="@+id/linear2"
-        android:layout_toEndOf="@+id/micImage" />
-
-    <SeekBar
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:id="@+id/seekbar_lowPass"
-        android:layout_above="@+id/linear3"
-        android:layout_alignParentEnd="true" />
+        <Button
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Bass Boost"
+            android:id="@+id/btn_BassEffect"
+            android:singleLine="false"
+            android:layout_marginLeft="120dp"
+            android:onClick="bassBoostEffect" />
+    </LinearLayout>
 
 
 </RelativeLayout>

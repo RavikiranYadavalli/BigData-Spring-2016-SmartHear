@@ -5,6 +5,9 @@ import android.media.AudioManager;
 import android.media.AudioRecord;
 import android.media.AudioTrack;
 import android.media.MediaRecorder;
+import android.media.audiofx.BassBoost;
+import android.media.audiofx.NoiseSuppressor;
+import android.media.audiofx.PresetReverb;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
@@ -14,7 +17,6 @@ import android.view.KeyEvent;
 import android.view.View;
 import android.widget.Button;
 import android.widget.SeekBar;
-import android.widget.Toast;
 
 import java.io.DataInputStream;
 import java.io.File;
@@ -25,7 +27,7 @@ import java.io.IOException;
 
 import ddf.minim.effects.BandPass;
 import ddf.minim.effects.HighPassSP;
-import ddf.minim.effects.LowPassFS;
+import ddf.minim.effects.LowPassSP;
 
 public class MainActivity extends AppCompatActivity {
     //    private static final int RECORDER_SAMPLERATE = 8000;
@@ -35,7 +37,7 @@ public class MainActivity extends AppCompatActivity {
     private static final String AUDIO_RECORDER_FILE_EXT_WAV = ".wav";
     private static final String AUDIO_RECORDER_FOLDER = "AudioRecorder";
     private static final String AUDIO_RECORDER_TEMP_FILE = "record_temp.raw";
-    private static final int RECORDER_SAMPLERATE = 44100;
+    private static final int RECORDER_SAMPLERATE = 8000;
     private static final int RECORDER_CHANNELS = AudioFormat.CHANNEL_IN_MONO;
     private static final int RECORDER_AUDIO_ENCODING = AudioFormat.ENCODING_PCM_16BIT;
     short[] audioData;
@@ -55,27 +57,32 @@ public class MainActivity extends AppCompatActivity {
     BandPass bandpass;
     private SeekBar seekBarForLowPass;
     private SeekBar seekBarForHighPass;
+    private SeekBar seekBarForBandPass;
     public int lowFrequencyValue = 0;
     public int highFrequencyValue = 0;
-    public int passFilterFlag = 0;
+    public int passFilterFlag = 1;
+    public int bandPassFrequencyValue = 0;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-
+        setVolumeControlStream(AudioManager.STREAM_MUSIC);
         setButtonHandlers();
         enableButtons(false);
-        int maxFrequencyLimit = 13000;
+        int maxFrequencyLimit = 15000;
         bufferSize = AudioRecord.getMinBufferSize
                 (RECORDER_SAMPLERATE, RECORDER_CHANNELS, RECORDER_AUDIO_ENCODING) * 3;
         audioData = new short[bufferSize]; //short array that pcm data is put into.
-        seekBarForLowPass = (SeekBar) findViewById(R.id.seekbar_lowPass);
-        seekBarForLowPass.setMax(maxFrequencyLimit);
-        seekBarForLowPass.setOnSeekBarChangeListener(this.seekBarEventLister);
         seekBarForHighPass = (SeekBar) findViewById(R.id.seekBar_highPass);
         seekBarForHighPass.setMax(maxFrequencyLimit);
         seekBarForHighPass.setOnSeekBarChangeListener(this.seekBarEventLister);
+        seekBarForBandPass = (SeekBar) findViewById(R.id.seekBar_bandPass);
+        seekBarForBandPass.setOnSeekBarChangeListener(this.seekBarEventLister);
+        seekBarForBandPass.setMax(maxFrequencyLimit);
+        seekBarForLowPass = (SeekBar) findViewById(R.id.seekbar_lowPass);
+        seekBarForLowPass.setOnSeekBarChangeListener(this.seekBarEventLister);
+        seekBarForLowPass.setMax(maxFrequencyLimit);
 
 
     }
@@ -91,39 +98,39 @@ public class MainActivity extends AppCompatActivity {
                 case R.id.seekbar_lowPass:
                     lowFrequencyValue = progresValue;
                     Log.d("Low freq value: ", Long.toString(lowFrequencyValue));
-                    if ((passFilterFlag == 2 || passFilterFlag == 3) && highFrequencyValue != 0) {
-                        passFilterFlag = 3;
-                    } else
-                        passFilterFlag = 1;
+                    passFilterFlag = 1;
                     break;
                 case R.id.seekBar_highPass:
                     highFrequencyValue = progresValue;
                     Log.d("High freq value: ", Long.toString(highFrequencyValue));
-                    if (passFilterFlag == 1 || passFilterFlag == 3) {
-
-                        passFilterFlag = 3;
-                    } else
-                        passFilterFlag = 2;
+                    passFilterFlag = 2;
+                    break;
+                case R.id.seekBar_bandPass:
+                    bandPassFrequencyValue = progresValue;
+                    passFilterFlag = 3;
+                    Log.d("Band pass freq value: ", Long.toString(bandPassFrequencyValue));
                     break;
                 default:
                     lowFrequencyValue = progresValue;
+                    passFilterFlag = 1;
                     break;
 
             }
 
-           // Toast.makeText(getApplicationContext(), "Changing seekbar's progress", Toast.LENGTH_SHORT).show();
+            // Toast.makeText(getApplicationContext(), "Changing seekbar's progress", Toast.LENGTH_SHORT).show();
         }
 
         @Override
         public void onStartTrackingTouch(SeekBar seekBar) {
-            Toast.makeText(getApplicationContext(), "Started tracking seekbar", Toast.LENGTH_SHORT).show();
+            // Toast.makeText(getApplicationContext(), "Mode of filter :", Toast.LENGTH_SHORT).show();
+
         }
 
         @Override
         public void onStopTrackingTouch(SeekBar seekBar) {
 
-            Log.d("SeekBar value", String.valueOf(frequency));
-            Toast.makeText(getApplicationContext(), "Stopped tracking seekbar", Toast.LENGTH_SHORT).show();
+            // Log.d("SeekBar value", String.valueOf(frequency));
+            // Toast.makeText(getApplicationContext(), "Stopped tracking seekbar", Toast.LENGTH_SHORT).show();
 
         }
     };
@@ -141,7 +148,7 @@ public class MainActivity extends AppCompatActivity {
     private void enableButtons(boolean isRecording) {
         enableButton(R.id.btn_Start, !isRecording);
         enableButton(R.id.btn_Stop, isRecording);
-        enableButton(R.id.btn_Play, true);
+        //enableButton(R.id.btn_Play, true);
     }
 
     private String getFilename() {
@@ -221,6 +228,12 @@ public class MainActivity extends AppCompatActivity {
                 m_track = new AudioTrack(AudioManager.STREAM_ALARM, RECORDER_SAMPLERATE,
                         AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_FLOAT,
                         bufferSize, AudioTrack.MODE_STREAM);
+                PresetReverb pReverb = new PresetReverb(1, 0);
+                pReverb.setPreset(PresetReverb.PRESET_SMALLROOM);
+                pReverb.setEnabled(true);
+                m_track.attachAuxEffect(pReverb.getId());
+                m_track.setAuxEffectSendLevel(1.0f);
+                NoiseSuppressor.create(m_track.getAudioSessionId());
                 m_track.setPlaybackRate(RECORDER_SAMPLERATE);
                 int read = 0;
                 short shortData[] = new short[bufferSize];
@@ -230,19 +243,23 @@ public class MainActivity extends AppCompatActivity {
                     read = recorder.read(shortData, 0, bufferSize);
                     if (read > 0) {
                         floatData = shortToFloat(shortData);
-                        //  Log.d("Frequency data",floatData.toString());
+                         Log.d("Frequency data",floatData.toString());
 //                       bandpass = new BandPass(400, 2, 2500);
 //                        bandpass.process( floatData);
                         if (passFilterFlag != 0 && passFilterFlag == 2) {
-                            HighPassSP hp = new HighPassSP(highFrequencyValue, 2);
+                            HighPassSP hp = new HighPassSP(highFrequencyValue, RECORDER_SAMPLERATE/2);
+
                             hp.process(floatData);
                         } else if (passFilterFlag != 0 && passFilterFlag == 1) {
-                            LowPassFS lp = new LowPassFS(lowFrequencyValue, 2);
+                            //  LowPassFS lp = new LowPassFS(lowFrequencyValue, 1);
+                            LowPassSP lp = new LowPassSP(lowFrequencyValue, RECORDER_SAMPLERATE/2);
                             lp.process(floatData);
                         } else if (passFilterFlag != 0 && passFilterFlag == 3) {
 //                            BandPass bp = new BandPass(lowFrequencyValue, 2, highFrequencyValue);
 //                            bp.process(floatData);
-                            bandpass = new BandPass(100, 2, 2500);
+                            float centerFreq = (float)(bandPassFrequencyValue*1.414);
+
+                            bandpass = new BandPass(centerFreq, bandPassFrequencyValue,RECORDER_SAMPLERATE/2);
                             bandpass.process(floatData);
                         }
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
@@ -277,7 +294,7 @@ public class MainActivity extends AppCompatActivity {
         int read = 0;
         if (null != os) {
             while (isRecording) {
-                read = recorder.read(shortData, 0, bufferSize);
+                read = recorder.read(shortData, 0, bufferSize/2);
                 //  read = recorder.read(data,0,bufferSize);
 
                 if (read > 0) {
@@ -486,6 +503,16 @@ public class MainActivity extends AppCompatActivity {
             converted[i] = temp.shortValue();
         }
         return converted;
+    }
+    public void bassBoostEffect(View v)
+    {
+        BassBoost bass = new BassBoost(0,m_track.getAudioSessionId());
+        bass.setEnabled(true);
+        BassBoost.Settings bassBoostSettingTemp =bass.getProperties();
+        BassBoost.Settings bassBoostSetting = new BassBoost.Settings(bassBoostSettingTemp.toString());
+        bass.setProperties(bassBoostSetting);
+        bass.setStrength((short) 900);
+
     }
 
 }
