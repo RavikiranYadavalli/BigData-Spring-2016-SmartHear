@@ -1,11 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="capturetest.audio.com.audiocapturetest">
-<uses-permission android:name="android.permission.RECORD_AUDIO" />
+
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
-    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+
+    <!-- To auto-complete the email text field in the login form with the user's emails -->
+    <uses-permission android:name="android.permission.GET_ACCOUNTS" />
+    <uses-permission android:name="android.permission.READ_PROFILE" />
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
@@ -13,9 +21,41 @@
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
         <activity
+            android:name=".LoginActivity"
+            android:label="Sign In"
+            android:theme="@style/Theme.AppCompat" />
+        <activity
             android:name=".MainActivity"
             android:label="Smart Hear"
-            android:theme="@style/Theme.AppCompat">
+            android:theme="@style/Theme.AppCompat" />
+
+        <service
+            android:name=".SoundDetectionService"
+            android:enabled="true"
+            android:exported="true">
+
+            <!-- <intent-filter> -->
+
+
+            <!-- &lt;!&ndash; <action android:name="android.intent.action.MAIN" /> &ndash;&gt; -->
+
+
+            <!-- &lt;!&ndash; <category android:name="android.intent.category.LAUNCHER" /> &ndash;&gt; -->
+            <!--  -->
+            <!-- </intent-filter> -->
+        </service>
+
+        <receiver
+            android:name=".SoundServiceReceiver"
+            android:enabled="true"
+            android:exported="true"
+            android:permission="android.permission.RECEIVE_BOOT_COMPLETED">
+
+        </receiver>
+
+        <activity android:name=".StartUpActivity"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 

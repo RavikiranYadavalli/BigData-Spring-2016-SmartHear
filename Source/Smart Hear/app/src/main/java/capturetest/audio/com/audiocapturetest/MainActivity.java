@@ -1,5 +1,9 @@
 package capturetest.audio.com.audiocapturetest;
 
+import android.app.Notification;
+import android.app.NotificationManager;
+import android.content.Context;
+import android.content.Intent;
 import android.media.AudioFormat;
 import android.media.AudioManager;
 import android.media.AudioRecord;
@@ -11,29 +15,51 @@ import android.media.audiofx.PresetReverb;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
+import android.os.Handler;
+import android.os.StrictMode;
 import android.support.v7.app.AppCompatActivity;
+import android.support.v7.app.NotificationCompat;
 import android.util.Log;
 import android.view.KeyEvent;
 import android.view.View;
+import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.SeekBar;
+import android.widget.Spinner;
 
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.DataInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
+import java.io.RandomAccessFile;
+import java.net.Socket;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.List;
 
 import ddf.minim.effects.BandPass;
 import ddf.minim.effects.HighPassSP;
 import ddf.minim.effects.LowPassSP;
+import jAudioFeatureExtractor.AudioFeatures.Compactness;
+import jAudioFeatureExtractor.AudioFeatures.FeatureExtractor;
+import jAudioFeatureExtractor.AudioFeatures.FractionOfLowEnergyWindows;
+import jAudioFeatureExtractor.AudioFeatures.MagnitudeSpectrum;
+import jAudioFeatureExtractor.AudioFeatures.PeakFinder;
+import jAudioFeatureExtractor.AudioFeatures.PowerSpectrum;
+import jAudioFeatureExtractor.AudioFeatures.RMS;
+import jAudioFeatureExtractor.AudioFeatures.SpectralRolloffPoint;
+import jAudioFeatureExtractor.AudioFeatures.ZeroCrossings;
 
-public class MainActivity extends AppCompatActivity {
-    //    private static final int RECORDER_SAMPLERATE = 8000;
-//    private static final int RECORDER_CHANNELS = AudioFormat.CHANNEL_IN_MONO;
-//    private static final int RECORDER_AUDIO_ENCODING = AudioFormat.ENCODING_DEFAULT;
-    private static final int RECORDER_BPP = 16;
+public class MainActivity extends AppCompatActivity implements AdapterView.OnItemSelectedListener {
+
+    private static final int RECORDER_BPP = 8;
     private static final String AUDIO_RECORDER_FILE_EXT_WAV = ".wav";
     private static final String AUDIO_RECORDER_FOLDER = "AudioRecorder";
     private static final String AUDIO_RECORDER_TEMP_FILE = "record_temp.raw";
@@ -50,19 +76,24 @@ public class MainActivity extends AppCompatActivity {
     Complex[] fftArray;
     int[] bufferData;
     int bytesRecorded;
+    Intent serviceIntent;
     private double[] absNormalizedSignal;
     public int mPeakPos;
     public String savedFileName;
     public float[] floatData;
-    BandPass bandpass;
+    int effectFlag = 0;
     private SeekBar seekBarForLowPass;
     private SeekBar seekBarForHighPass;
     private SeekBar seekBarForBandPass;
+    private Spinner spinnerEffects;
     public int lowFrequencyValue = 0;
     public int highFrequencyValue = 0;
     public int passFilterFlag = 1;
     public int bandPassFrequencyValue = 0;
-
+    private byte[]  buffer;
+public String sampleFeatureVector ;
+    private static final int TIMER_INTERVAL = 120;
+    public int mPeriodInFrames;
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -71,8 +102,32 @@ public class MainActivity extends AppCompatActivity {
         setButtonHandlers();
         enableButtons(false);
         int maxFrequencyLimit = 15000;
+        StrictMode.ThreadPolicy policy = new StrictMode.ThreadPolicy.Builder().permitAll().build();
+        StrictMode.setThreadPolicy(policy);
+        stopService();
+        spinnerEffects = (Spinner) findViewById(R.id.spinner_Effects);
+        // Spinner Drop down elements
+        List<String> categories = new ArrayList();
+        categories.add("Home");
+
+        categories.add("Class room");
+
+        categories.add("Bass boost");
+
+        categories.add("Outdoor");
+
+        categories.add("Office");
+
+        ArrayAdapter<String> dataAdapter = new ArrayAdapter<String>(this, android.R.layout.simple_spinner_item, categories);
+
+        // Drop down layout style - list view with radio button
+        dataAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spinnerEffects.setOnItemSelectedListener(this);
+        // attaching data adapter to spinner
+        spinnerEffects.setAdapter(dataAdapter);
+
         bufferSize = AudioRecord.getMinBufferSize
-                (RECORDER_SAMPLERATE, RECORDER_CHANNELS, RECORDER_AUDIO_ENCODING) * 3;
+                (RECORDER_SAMPLERATE, RECORDER_CHANNELS, RECORDER_AUDIO_ENCODING);
         audioData = new short[bufferSize]; //short array that pcm data is put into.
         seekBarForHighPass = (SeekBar) findViewById(R.id.seekBar_highPass);
         seekBarForHighPass.setMax(maxFrequencyLimit);
@@ -136,8 +191,8 @@ public class MainActivity extends AppCompatActivity {
     };
 
     private void setButtonHandlers() {
-        ((Button) findViewById(R.id.btn_Start)).setOnClickListener(btnClick);
-        ((Button) findViewById(R.id.btn_Stop)).setOnClickListener(btnClick);
+         findViewById(R.id.btn_Start).setOnClickListener(btnClick);
+         findViewById(R.id.btn_Stop).setOnClickListener(btnClick);
     }
 
 
@@ -212,20 +267,28 @@ public class MainActivity extends AppCompatActivity {
         return (file.getAbsolutePath() + "/" + AUDIO_RECORDER_TEMP_FILE);
     }
 
+
     private void startRecording() {
-        recorder = new AudioRecord(MediaRecorder.AudioSource.MIC,
+        ByteBuffer byteBuf = ByteBuffer.allocate(2 * bufferSize);
+        mPeriodInFrames = RECORDER_SAMPLERATE * TIMER_INTERVAL / 1000;
+        final byte data[] = new byte[bufferSize];
+        recorder = new AudioRecord(MediaRecorder.AudioSource.DEFAULT,
                 RECORDER_SAMPLERATE, RECORDER_CHANNELS, RECORDER_AUDIO_ENCODING, bufferSize);
 
+        final int[] cntr = {0};
         recorder.startRecording();
+        final double[][] featureSamples = new double[7][];
+        for (int i = 0; i < featureSamples.length; i++) {
+            featureSamples[i] = new double[1000];
+        }
 
         isRecording = true;
 
         recordingThread = new Thread(new Runnable() {
-
+            @Override
             public void run() {
-                // writeAudioDataToFile();
 
-                m_track = new AudioTrack(AudioManager.STREAM_ALARM, RECORDER_SAMPLERATE,
+                m_track = new AudioTrack(AudioManager.STREAM_MUSIC, RECORDER_SAMPLERATE,
                         AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_FLOAT,
                         bufferSize, AudioTrack.MODE_STREAM);
                 PresetReverb pReverb = new PresetReverb(1, 0);
@@ -233,35 +296,117 @@ public class MainActivity extends AppCompatActivity {
                 pReverb.setEnabled(true);
                 m_track.attachAuxEffect(pReverb.getId());
                 m_track.setAuxEffectSendLevel(1.0f);
+
                 NoiseSuppressor.create(m_track.getAudioSessionId());
                 m_track.setPlaybackRate(RECORDER_SAMPLERATE);
-                int read = 0;
-                short shortData[] = new short[bufferSize];
-                byte[] data = new byte[bufferSize];
+                if (effectFlag != 0) {
+                    applyEffect(effectFlag);
+                }
+                final int[] read = {0};
+                 short shortData[] = new short[bufferSize];
+                //  byte[] data = new byte[bufferSize];
                 m_track.play();
+                int index = 0;
                 while (isRecording) {
-                    read = recorder.read(shortData, 0, bufferSize);
-                    if (read > 0) {
+                   //read[0] = recorder.read(data, 0, bufferSize);
+                    read[0] = recorder.read(shortData,0,bufferSize);
+                    cntr[0]++;
+                  //  writeAudioDataToFile(data, read[0]);
+                   // shortData = byteToShort(data);
+                    double da[][] = new double[1][shortData.length];
+                    //da[0] = calculateFFT(data);
+                    for (int j = 0; j < shortData.length; j++) {
+                        da[0][j] = (double) shortData[j]/2048 ;
+                    }
+                    try {
+                        // AudioSamples a = new AudioSamples(da, recorder.getSampleRate(), "test", false);
+                        FeatureExtractor featureExtractor;
+
+                        featureExtractor = new ZeroCrossings();
+                        //featureExtractor.setWindow(1);
+                        Log.d("Sample rate : ", String.valueOf(recorder.getSampleRate() ));
+                        double sampleRateInDouble = recorder.getSampleRate();
+                        double[][] otherFeatures = new double[3][3];
+                        double[] zerocrossings;
+                        featureExtractor.setWindow(5);
+                        zerocrossings = featureExtractor.extractFeature(da[0], sampleRateInDouble, otherFeatures);
+                        featureSamples[0][index] = zerocrossings[0];
+                        featureExtractor = new MagnitudeSpectrum();
+                      // featureExtractor.setWindow(5);
+                        double[] magnitudeSpectrum;
+                       // featureExtractor.setWindow(1600);
+                        magnitudeSpectrum = featureExtractor.extractFeature(da[0], sampleRateInDouble, otherFeatures);
+                        otherFeatures[0] = magnitudeSpectrum;
+                        double[] mfcc;
+                        //featureExtractor = new MFCC();
+                       //featureExtractor.setWindow(5);
+                        mfcc = featureExtractor.extractFeature(da[0], sampleRateInDouble, otherFeatures);
+                        double meanOfMfcc = calculateMean(mfcc);
+                        featureSamples[1][index] = meanOfMfcc + 100;
+                        double[] lowEnergyWindows;
+                        featureExtractor = new FractionOfLowEnergyWindows();
+                     //featureExtractor.setWindow(5);
+                        lowEnergyWindows = featureExtractor.extractFeature(da[0], sampleRateInDouble, otherFeatures);
+                        double meanLowEnergyWindows = calculateMean(lowEnergyWindows);
+                        featureSamples[3][index] = meanLowEnergyWindows;
+                        featureExtractor = new PeakFinder();
+                     // featureExtractor.setWindow(5);
+                        otherFeatures[0] = magnitudeSpectrum;
+                        double[] peakFinder = featureExtractor.extractFeature(da[0], sampleRateInDouble, otherFeatures);
+                        double meanPeak = calculateMean(peakFinder);
+                        featureSamples[4][index] = meanPeak;
+                        featureExtractor = new Compactness();
+                       //featureExtractor.setWindow(5);
+                        double[] compactness = featureExtractor.extractFeature(da[0], sampleRateInDouble, otherFeatures);
+                        double meanCompact = calculateMean(compactness);
+                        featureSamples[6][index] = meanCompact;
+                        //featureExtractor.extractFeature(da[0], sampleRateInDouble, otherFeatures);
+                        double[] rms;
+                        featureExtractor = new RMS();
+                        //featureExtractor.setWindow(5);
+                        otherFeatures[0] = null;
+                        rms = featureExtractor.extractFeature(da[0], sampleRateInDouble, otherFeatures);
+                        double meanRms = calculateMean(rms);
+                        featureSamples[5][index] = meanRms;
+                        featureExtractor = new PowerSpectrum();
+                       // featureExtractor.setWindow(5);
+                        double[] powerSpectrum;
+                       // featureExtractor.setWindow(1600);
+                        powerSpectrum = featureExtractor.extractFeature(da[0],sampleRateInDouble,otherFeatures);
+                        otherFeatures[0] = powerSpectrum;
+                        featureExtractor = new SpectralRolloffPoint();
+                        //featureExtractor.setWindow(5);
+                      //  featureExtractor.setWindow(1600);
+                        double[] spectralRollOfPoint = featureExtractor.extractFeature(da[0], sampleRateInDouble, otherFeatures);
+                        double meanSpectralRollOff = calculateMean(spectralRollOfPoint);
+                        featureSamples[2][index] = meanSpectralRollOff;
+                        index++;
+                    } catch (Exception ex) {
+                        ex.printStackTrace();
+                    }
+
+                    if (read[0] > 0) {
+
                         floatData = shortToFloat(shortData);
-                         Log.d("Frequency data",floatData.toString());
-//                       bandpass = new BandPass(400, 2, 2500);
-//                        bandpass.process( floatData);
                         if (passFilterFlag != 0 && passFilterFlag == 2) {
-                            HighPassSP hp = new HighPassSP(highFrequencyValue, RECORDER_SAMPLERATE/2);
+                            HighPassSP hp = new HighPassSP(highFrequencyValue, RECORDER_SAMPLERATE);
 
                             hp.process(floatData);
                         } else if (passFilterFlag != 0 && passFilterFlag == 1) {
                             //  LowPassFS lp = new LowPassFS(lowFrequencyValue, 1);
-                            LowPassSP lp = new LowPassSP(lowFrequencyValue, RECORDER_SAMPLERATE/2);
+                            LowPassSP lp = new LowPassSP(lowFrequencyValue, RECORDER_SAMPLERATE / 2);
                             lp.process(floatData);
                         } else if (passFilterFlag != 0 && passFilterFlag == 3) {
-//                            BandPass bp = new BandPass(lowFrequencyValue, 2, highFrequencyValue);
-//                            bp.process(floatData);
-                            float centerFreq = (float)(bandPassFrequencyValue*1.414);
 
-                            bandpass = new BandPass(centerFreq, bandPassFrequencyValue,RECORDER_SAMPLERATE/2);
+                            float centerFreq = bandPassFrequencyValue / 2;
+
+                            BandPass bandpass = new BandPass(centerFreq, 50, RECORDER_SAMPLERATE);
+                            //bandpass.setBandWidth(bandPassFrequencyValue);
+                            bandpass.setBandWidth(bandPassFrequencyValue / 2);
+                            bandpass.setFreq(bandPassFrequencyValue);
                             bandpass.process(floatData);
                         }
+
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                             m_track.write(floatData, 0, bufferSize, AudioTrack.WRITE_NON_BLOCKING);
 
@@ -273,54 +418,104 @@ public class MainActivity extends AppCompatActivity {
         }, "AudioRecorder Thread");
 
         recordingThread.start();
+        Handler stopper = new Handler();
+        stopper.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                enableButtons(false);
+                stopRecording();
+                Log.d("Counter value : ", String.valueOf(cntr[0]));
+                Log.d("Stopping thread", "After 10 secs");
+                calculateMeanOfSamples(featureSamples);
+                analyzeFeatures(sampleFeatureVector);
+            }
+        }, 4000);
+
 
 
     }
 
-    private void writeAudioDataToFile() {
+    public void calculateMeanOfSamples(double[][] featureSamples) {
+        double selectedSamples[] = new double[7];
+        sampleFeatureVector ="";
+        for (int i = 0; i < featureSamples.length; i++) {
 
-        byte data[] = new byte[bufferSize];
-        short shortData[] = new short[bufferSize];
+                selectedSamples[i] = calculateMean(featureSamples[i]);
+                sampleFeatureVector += selectedSamples[i] + ";";
+
+        }
+        Log.d("Zero crossing rate: ", String.valueOf(selectedSamples[0]));
+        Log.d("MFCC : ", String.valueOf(selectedSamples[1]));
+        Log.d("Spectral rolloff : ", String.valueOf(selectedSamples[2]));
+        Log.d("Low energy windows : ", String.valueOf(selectedSamples[3]));
+        Log.d("Mean Peak : ", String.valueOf(selectedSamples[4]));
+        Log.d("RMS : ", String.valueOf(selectedSamples[5]));
+        Log.d("Compactness : ", String.valueOf(selectedSamples[6]));
+
+
+    }
+
+    public void analyzeFeatures(final String featureVector) {
+        if (!featureVector.isEmpty()) {
+            MainActivity.this.runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    //final SocketConnection serverSocket = new SocketConnection();
+                    Log.d("Feature vector :", featureVector);
+
+                   //serverSocket.setData(featureVector);//41.355;37.10349177400677;0.01740234375;0.2366666666666665;
+                   // serverSocket.setData("41.355;4.026200965328397;0.01740234375;0.2366666666666665;7.995975753666285E-4;131.39006999868124;2273.4955445886208");
+                  String result = "" ;//serverSocket.run();
+//                    if(!result.isEmpty())
+//                    {
+//                        showNotificationToUser(result);
+//                    }
+                }
+            });
+        }
+    }
+
+    public void showNotificationToUser(String predictedClass)
+    {
+        NotificationCompat.Builder soundNotification = new NotificationCompat.Builder(this);
+        soundNotification.setSmallIcon(R.drawable.notification_icon);
+        soundNotification.setDefaults(Notification.DEFAULT_VIBRATE);
+        soundNotification.setContentTitle("Sound analyzed");
+        soundNotification.setContentText("Your door bell seems to be ringing");
+        NotificationManager mNotificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        mNotificationManager.notify(123, soundNotification.build());
+
+
+    }
+    public void stopService() {
+        stopService(new Intent(getBaseContext(), SoundDetectionService.class));
+    }
+
+    private void writeAudioDataToFile(byte[] data, int size){
         String filename = getTempFilename();
         FileOutputStream os = null;
 
         try {
             os = new FileOutputStream(filename);
         } catch (FileNotFoundException e) {
-            // TODO Auto-generated catch block
+// TODO Auto-generated catch block
             e.printStackTrace();
         }
 
-        int read = 0;
-        if (null != os) {
-            while (isRecording) {
-                read = recorder.read(shortData, 0, bufferSize/2);
-                //  read = recorder.read(data,0,bufferSize);
-
-                if (read > 0) {
-                    // absNormalizedSignal = calculateFFT(data); // --> HERE ^__^
-                    floatData = shortToFloat(shortData);
-                    bandpass = new BandPass(25000, 2, 44100);
-                    bandpass.process(floatData);
-                    bandpass.printCoeff();
-                }
-
-                if (AudioRecord.ERROR_INVALID_OPERATION != read) {
-                    try {
-                        os.write(data);
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                }
-            }
 
             try {
-                os.close();
+                os.write(data);
             } catch (IOException e) {
                 e.printStackTrace();
             }
-        }
+
+//        try {
+//            os.close();
+//        } catch (IOException e) {
+//            e.printStackTrace();
+//        }
     }
+
 
     private void stopRecording() {
         if (null != recorder) {
@@ -333,13 +528,48 @@ public class MainActivity extends AppCompatActivity {
             recordingThread = null;
         }
 
-        copyWaveFile(getTempFilename(), getFilename());
-        // deleteTempFile();
+       // copyWaveFile(getTempFilename(), getFilename());
+        //deleteTempFile();
+    }
+
+    public double calculateMean(double[] arrayOfNumbers) {
+        double sum = 0;
+        for (int i = 0; i < arrayOfNumbers.length; i++) {
+            sum += arrayOfNumbers[i];
+        }
+        return  sum / arrayOfNumbers.length;
     }
 
     private void deleteTempFile() {
         File file = new File(getTempFilename());
         file.delete();
+    }
+    private void writeFileToPhone()
+    {
+        short nChannels =1;
+        short mBitsPersample =16;
+        try {
+            RandomAccessFile randomAccessWriter = new RandomAccessFile(getFilename(), "rw");
+            randomAccessWriter.setLength(0); // Set file length to 0, to prevent unexpected behavior in case the file already existed
+            randomAccessWriter.writeBytes("RIFF");
+            randomAccessWriter.writeInt(0); // Final file size not known yet, write 0
+            randomAccessWriter.writeBytes("WAVE");
+            randomAccessWriter.writeBytes("fmt ");
+            randomAccessWriter.writeInt(Integer.reverseBytes(16)); // Sub-chunk size, 16 for PCM
+            randomAccessWriter.writeShort(Short.reverseBytes((short) 1)); // AudioFormat, 1 for PCM
+            randomAccessWriter.writeShort(Short.reverseBytes(nChannels));// Number of channels, 1 for mono, 2 for stereo
+            randomAccessWriter.writeInt(Integer.reverseBytes(RECORDER_SAMPLERATE)); // Sample rate
+            randomAccessWriter.writeInt(Integer.reverseBytes(RECORDER_SAMPLERATE * nChannels * mBitsPersample / 8)); // Byte rate, SampleRate*NumberOfChannels*mBitsPersample/8
+            randomAccessWriter.writeShort(Short.reverseBytes((short) (nChannels * mBitsPersample / 8))); // Block align, NumberOfChannels*mBitsPersample/8
+            randomAccessWriter.writeShort(Short.reverseBytes(mBitsPersample)); // Bits per sample
+            randomAccessWriter.writeBytes("data");
+            randomAccessWriter.writeInt(0); // Data chunk size not known yet, write 0
+            buffer = new byte[mPeriodInFrames * mBitsPersample / 8 * nChannels];
+        }
+        catch(Exception ex)
+        {
+
+        }
     }
 
     private void copyWaveFile(String inFilename, String outFilename) {
@@ -348,7 +578,7 @@ public class MainActivity extends AppCompatActivity {
         long totalAudioLen = 0;
         long totalDataLen = totalAudioLen + 36;
         long longSampleRate = RECORDER_SAMPLERATE;
-        int channels = 2;
+        int channels = 1;
         long byteRate = RECORDER_BPP * RECORDER_SAMPLERATE * channels / 8;
 
         byte[] data = new byte[bufferSize];
@@ -381,8 +611,55 @@ public class MainActivity extends AppCompatActivity {
             FileOutputStream out, long totalAudioLen,
             long totalDataLen, long longSampleRate, int channels,
             long byteRate) throws IOException {
-        //another code
 
+        byte[] header = new byte[44];
+
+        header[0] = 'R'; // RIFF/WAVE header
+        header[1] = 'I';
+        header[2] = 'F';
+        header[3] = 'F';
+        header[4] = (byte) (totalDataLen & 0xff);
+        header[5] = (byte) ((totalDataLen >> 8) & 0xff);
+        header[6] = (byte) ((totalDataLen >> 16) & 0xff);
+        header[7] = (byte) ((totalDataLen >> 24) & 0xff);
+        header[8] = 'W';
+        header[9] = 'A';
+        header[10] = 'V';
+        header[11] = 'E';
+        header[12] = 'f'; // 'fmt ' chunk
+        header[13] = 'm';
+        header[14] = 't';
+        header[15] = ' ';
+        header[16] = 16; // 4 bytes: size of 'fmt ' chunk
+        header[17] = 0;
+        header[18] = 0;
+        header[19] = 0;
+        header[20] = 1; // format = 1
+        header[21] = 0;
+        header[22] = (byte) channels;
+        header[23] = 0;
+        header[24] = (byte) (longSampleRate & 0xff);
+        header[25] = (byte) ((longSampleRate >> 8) & 0xff);
+        header[26] = (byte) ((longSampleRate >> 16) & 0xff);
+        header[27] = (byte) ((longSampleRate >> 24) & 0xff);
+        header[28] = (byte) (byteRate & 0xff);
+        header[29] = (byte) ((byteRate >> 8) & 0xff);
+        header[30] = (byte) ((byteRate >> 16) & 0xff);
+        header[31] = (byte) ((byteRate >> 24) & 0xff);
+        header[32] = (byte) (2 * 16 / 8); // block align
+        header[33] = 0;
+        header[34] = RECORDER_BPP; // bits per sample
+        header[35] = 0;
+        header[36] = 'd';
+        header[37] = 'a';
+        header[38] = 't';
+        header[39] = 'a';
+        header[40] = (byte) (totalAudioLen & 0xff);
+        header[41] = (byte) ((totalAudioLen >> 8) & 0xff);
+        header[42] = (byte) ((totalAudioLen >> 16) & 0xff);
+        header[43] = (byte) ((totalAudioLen >> 24) & 0xff);
+
+        out.write(header, 0, 44);
     }
 
     public double[] calculateFFT(byte[] signal) {
@@ -422,6 +699,7 @@ public class MainActivity extends AppCompatActivity {
                     Log.d("Activity ", "Start Recording");
                     enableButtons(true);
                     startRecording();
+
                     break;
                 }
                 case R.id.btn_Stop: {
@@ -436,6 +714,14 @@ public class MainActivity extends AppCompatActivity {
         }
     };
 
+//    @Override
+//    protected void onStop() {
+//        super.onStop();
+//        if(serviceIntent==null) {
+//            serviceIntent = new Intent(this, SoundDetectionService.class);
+//            startService(serviceIntent);
+//        }
+//    }
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
         if (keyCode == KeyEvent.KEYCODE_BACK) {
@@ -450,7 +736,7 @@ public class MainActivity extends AppCompatActivity {
                 bufferSize, AudioTrack.MODE_STREAM);
         String filepath = Environment.getExternalStorageDirectory().getAbsolutePath();
 
-        int i = 0;
+        int i;
         byte[] s = new byte[bufferSize];
         try {
             FileInputStream fin = new FileInputStream(savedFileName);
@@ -504,15 +790,166 @@ public class MainActivity extends AppCompatActivity {
         }
         return converted;
     }
-    public void bassBoostEffect(View v)
-    {
-        BassBoost bass = new BassBoost(0,m_track.getAudioSessionId());
-        bass.setEnabled(true);
-        BassBoost.Settings bassBoostSettingTemp =bass.getProperties();
-        BassBoost.Settings bassBoostSetting = new BassBoost.Settings(bassBoostSettingTemp.toString());
-        bass.setProperties(bassBoostSetting);
-        bass.setStrength((short) 900);
+
+    public void bassBoostEffect() {
+        if (m_track != null) {
+            BassBoost bass = new BassBoost(0, m_track.getAudioSessionId());
+            bass.setEnabled(true);
+            BassBoost.Settings bassBoostSettingTemp = bass.getProperties();
+            BassBoost.Settings bassBoostSetting = new BassBoost.Settings(bassBoostSettingTemp.toString());
+            bass.setProperties(bassBoostSetting);
+            bass.setStrength((short) 900);
+            Log.d("Bass effect : ", "On");
+//            Toast message = Toast.makeText(getApplicationContext(),"Bass effect applied",Toast.LENGTH_SHORT);
+//            final Toast toast = Toast.makeText(getApplicationContext(), "Bass boost enabled", Toast.LENGTH_SHORT);
+//            toast.show();
+//
+//            Handler handler = new Handler();
+//            handler.postDelayed(new Runnable() {
+//                @Override
+//                public void run() {
+//                    toast.cancel();
+//                }
+//            }, 2000);
+            //  Toast.makeText(getApplicationContext(), "Bass boost enabled", Toast.LENGTH_SHORT).show();
+        } else {
+            effectFlag = 3;
+        }
+    }
+
+    @Override
+    public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+        String selectedOption = parent.getItemAtPosition(position).toString();
+        int optionId = getSelectedEffectId(selectedOption);
+        applyEffect(optionId);
+    }
+
+    @Override
+    public void onNothingSelected(AdapterView<?> parent) {
 
     }
+
+    public int getSelectedEffectId(String option) {
+        switch (option.toLowerCase()) {
+            case "class room":
+                return 1;
+            case "outdoor":
+                return 2;
+            case "bass boost":
+                return 3;
+
+            case "home":
+                return 4;
+            case "office":
+                return 5;
+            default:
+                return 0;
+        }
+    }
+
+    public void applyEffect(int option) {
+        if (option != 0) {
+            switch (option) {
+                case 1:
+                    applyContextEffects(1);
+                    break;
+
+                case 2:
+                    applyContextEffects(2);
+                    break;
+                case 3:
+                    bassBoostEffect();
+                    break;
+                case 4:
+                    applyContextEffects(4);
+                    break;
+                case 5:
+                    applyContextEffects(5);
+                    break;
+                default:
+                    break;
+
+            }
+        }
+    }
+
+    public void applyContextEffects(int id) {
+        if (id != 0) {
+
+            switch (id) {
+                case 1:
+                    seekBarForLowPass.setProgress(0);
+                    seekBarForHighPass.setProgress(0);
+                    seekBarForBandPass.setProgress(5000);
+
+                    Log.d("Class room mode :", "On");
+                    break;
+                case 2:
+                    seekBarForBandPass.setProgress(0);
+                    seekBarForLowPass.setProgress(0);
+                    seekBarForHighPass.setProgress(4000);
+                    Log.d("Outdoor mode :", "On");
+                    break;
+                case 4:
+                    seekBarForHighPass.setProgress(0);
+                    seekBarForBandPass.setProgress(0);
+                    seekBarForLowPass.setProgress(10000);
+                    Log.d("Home mode :", "On");
+                    break;
+                case 5:
+                    seekBarForHighPass.setProgress(0);
+                    seekBarForBandPass.setProgress(0);
+                    seekBarForLowPass.setProgress(7000);
+                    Log.d("Office mode :", "On");
+                    break;
+            }
+        }
+    }
+
+
+ private class SocketConnection {
+        int count = 0;
+        String message;
+        Socket client;
+        private Socket clientSocket;
+        int cnt;
+        String result;
+        public void setData(String data) {
+            message = "ANALYZE :";
+            message += data;
+
+        }
+
+        public String run() {
+            final String hostIp ="10.99.2.114"; //"192.168.0.23";
+            final int portNumber = 9999;
+
+            try {
+                client = new Socket(hostIp, portNumber);
+                BufferedWriter writer;
+                writer = new BufferedWriter(new OutputStreamWriter(client.getOutputStream()));
+                writer.write(message);
+                writer.newLine();
+                writer.flush();
+                writer.close();
+                BufferedReader reader;
+                String line;
+                client = new Socket(hostIp, portNumber);
+
+                reader = new BufferedReader(new InputStreamReader(client.getInputStream()));
+                line = reader.readLine();
+                result = line;
+                Log.d("Server response :",line);
+            }
+            catch (Exception ex)
+            {
+                ex.printStackTrace();
+            }
+            result = "Dummy class";
+            return result;
+        }
+
+    }
+
 
 }

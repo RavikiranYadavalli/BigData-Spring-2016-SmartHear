@@ -145,8 +145,15 @@
             android:text="Bass Boost"
             android:id="@+id/btn_BassEffect"
             android:singleLine="false"
-            android:layout_marginLeft="120dp"
-            android:onClick="bassBoostEffect" />
+            android:layout_marginLeft="20dp"
+            android:onClick="bassBoostEffect"
+            android:visibility="gone" />
+
+        <Spinner
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:id="@+id/spinner_Effects"
+            style="@style/Base.TextAppearance.AppCompat.Widget.DropDownItem" />
     </LinearLayout>
 
 
