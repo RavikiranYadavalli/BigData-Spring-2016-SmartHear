@@ -5,8 +5,8 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:fitsSystemWindows="true"
-    tools:context="capturetest.audio.com.audiocapturetest.MainActivity"
-    android:background="@drawable/background_3">
+    tools:context="com.smarthear.audiodetection.MainActivity"
+    android:background="@drawable/background">
 
     <android.support.design.widget.AppBarLayout
         android:layout_width="match_parent"

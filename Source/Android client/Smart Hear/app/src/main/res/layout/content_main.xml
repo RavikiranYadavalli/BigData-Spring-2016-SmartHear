@@ -9,7 +9,7 @@
     android:paddingRight="@dimen/activity_horizontal_margin"
     android:paddingTop="@dimen/activity_vertical_margin"
     app:layout_behavior="@string/appbar_scrolling_view_behavior"
-    tools:context="capturetest.audio.com.audiocapturetest.MainActivity"
+    tools:context="com.smarthear.audiodetection.MainActivity"
     tools:showIn="@layout/activity_main">
 
     <TextView    android:id="@+id/text1"
@@ -153,7 +153,14 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:id="@+id/spinner_Effects"
-            style="@style/Base.TextAppearance.AppCompat.Widget.DropDownItem" />
+
+            style="@style/Base.TextAppearance.AppCompat.Widget.DropDownItem"
+            android:spinnerMode="dropdown"
+            android:textAlignment="center"
+            android:theme="@style/Base.Theme.AppCompat"
+            android:background="@color/colorAccent"
+            android:layout_marginBottom="20dp"
+            android:layout_marginTop="20dp"/>
     </LinearLayout>
 
 

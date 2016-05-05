@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="capturetest.audio.com.audiocapturetest">
+    package="smarthear.com.audiodetection">
 
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.INTERNET" />
@@ -21,39 +21,29 @@
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
         <activity
-            android:name=".LoginActivity"
+            android:name="com.smarthear.audiodetection.LoginActivity"
             android:label="Sign In"
             android:theme="@style/Theme.AppCompat" />
         <activity
-            android:name=".MainActivity"
+            android:name="com.smarthear.audiodetection.MainActivity"
             android:label="Smart Hear"
             android:theme="@style/Theme.AppCompat" />
 
         <service
-            android:name=".SoundDetectionService"
+            android:name="com.smarthear.audiodetection.SoundDetectionService"
             android:enabled="true"
             android:exported="true">
-
-            <!-- <intent-filter> -->
-
-
-            <!-- &lt;!&ndash; <action android:name="android.intent.action.MAIN" /> &ndash;&gt; -->
-
-
-            <!-- &lt;!&ndash; <category android:name="android.intent.category.LAUNCHER" /> &ndash;&gt; -->
-            <!--  -->
-            <!-- </intent-filter> -->
         </service>
 
         <receiver
-            android:name=".SoundServiceReceiver"
+            android:name="com.smarthear.audiodetection.SoundServiceReceiver"
             android:enabled="true"
             android:exported="true"
             android:permission="android.permission.RECEIVE_BOOT_COMPLETED">
 
         </receiver>
 
-        <activity android:name=".StartUpActivity"
+        <activity android:name="com.smarthear.audiodetection.StartUpActivity"
             android:theme="@android:style/Theme.Translucent.NoTitleBar">
 
             <intent-filter>
