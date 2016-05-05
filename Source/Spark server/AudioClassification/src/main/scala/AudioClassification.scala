@@ -1,22 +1,23 @@
 /**
-  *@author : Ravi kiran Yadavalli
+  *@author : Ravi kiran Yadavalli , Ragunandan Rao Malangully
+  *version : 1.0.0
+  *Machine Leaning Part of Audio Analysis
   */
 
-import java.io.{PrintStream, File}
+import java.io.{File, PrintStream}
 import java.net.ServerSocket
 import javax.sound.sampled.AudioInputStream
+
 import jAudioFeatureExtractor.AudioFeatures._
 import jAudioFeatureExtractor.jAudioTools.AudioSamples
-import org.apache.spark.mllib.evaluation.MulticlassMetrics
 import org.apache.spark.mllib.linalg.Vectors
-import org.apache.spark.mllib.regression.LabeledPoint
-import org.apache.spark.mllib.tree.DecisionTree
 import org.apache.spark.mllib.tree.model.DecisionTreeModel
 import org.apache.spark.{SparkConf, SparkContext}
+
 import scala.io.BufferedSource
 
 /**
-  *
+  *Feature Extraction from Audio Source
   */
 object AudioFeature extends Enumeration {
   type AudioFeature = Value
@@ -29,10 +30,11 @@ object AudioClassification {
   val TRAINING_PATH = "data/training/*"
   val TESTING_PATH = "data/testing/*"
 
-  val AUDIO_CATEGORIES_HOME = List("doorbell", "doorknock","siren", "dogbark","telephone")
-  val AUDIO_CATEGORIES_OUTDOOR = List("traffic","car","train","ambulance","bike")
-  val AUDIO_CATEGORIES_CLASS = List("man","woman","group","siren")
-    //List("bike","blender","boilingWater","cough","doorBell","dyerMachine","flushing","fondoSilencio","fondoTranquilo","kick","knockingDoor","shower","snare","stew","tel","toothBrushing","vaccum","washingDishes","washingMachine")
+  //val AUDIO_CATEGORIES = List("Doorbell", "Doorknock","Siren", "Dogbark","traffic","car","Telephone","train","ambulance","bike")
+val AUDIO_CATEGORIES_OFFICE = List("deskbell","keyboard","fax","officedoor","phone","printer")
+val AUDIO_CATEGORIES_CLASS = List("siren","man","woman","group")
+  val AUDIO_CATEGORIES_HOME = List("telephone","doorknock","doorbell","dogbark","siren")
+val AUDIO_CATEGORIES_OUTDOOR = List("ambulance","horn","police","traffic","train","vehicle")
 
   def main(args: Array[String]) {
     System.setProperty("hadoop.home.dir", "F:\\winutils")
@@ -40,121 +42,120 @@ object AudioClassification {
     val sc = new SparkContext(sparkConf)
     val server = new ServerSocket(9999)
     var flag = false
+        var output = ""
+        println("server Enter")
+        while (true) {
+          val s = server.accept()
+            if (flag) {
+              val out = new PrintStream(s.getOutputStream())
+              println(output)
+              out.println(output)
+              out.flush()
+              flag = false
+              s.close()
+            }
+            else {
+              println("server UP")
+              val in = new BufferedSource(s.getInputStream()).getLines()
+              val input = in.mkString(" ")
+                  if (input.contains("ANALYZE")) {
 
-//
-//val features1 = AudioFeatureExtraction("F:/Downloads/CS5542-Tutorial10-SourceCode/CS5542-Tutorial10-SourceCode/AudioClassification/data/training/bike/hund.wav")
-  //      println("Features from server are:" + features1)
+                    val splitInput = input.split("ANALYZE :")
+                    println("Received is : " + splitInput(1))
+                    val context= splitInput(1).split("_")(0)
+                    var featuresList = splitInput(1).split("_")(1)
+                    println("context is: " + " " + context )
+                  //  val features1 = AudioFeatureExtraction("F:/Downloads/CS5542-Tutorial10-SourceCode/CS5542-Tutorial10-SourceCode/AudioClassification/data/training/bike/hund.wav")
+                    //println("Features from server are:" + features1)
+                    val featureBuilder = StringBuilder.newBuilder
+                    featuresList.map(feature => featureBuilder.append(feature))
+                    println("featurebuilder is: " + " " + featureBuilder.toString())
+      //              val numClasses = 10
+      //              val categoricalFeaturesInfo = Map[Int, Int]()
+      //              val numTrees = 10 // Use more in practice.
+      //              val featureSubsetStrategy = "auto" // Let the algorithm choose.
+      //              val impurity = "gini"
+      //              val maxDepth = 4
+      //              val maxBins = 32
+                   //  val model = RandomForest.trainClassifier(X_train, numClasses, categoricalFeaturesInfo,
+                    // numTrees, featureSubsetStrategy, impurity, maxDepth, maxBins)
+                    val nameOfModelToBeSelected = "models/ContextDecisionTreeClassificationModel_" + context
+                    println(nameOfModelToBeSelected)
+                    val sameModel = DecisionTreeModel.load(sc, nameOfModelToBeSelected)
+                    val labelAndPreds = sameModel.predict(Vectors.dense(featureBuilder.toString().split(';').map(_.toDouble)))
+                    println("prediction " + labelAndPreds)
+                    println("Learned classification tree model:\n" + sameModel.toDebugString)
+                    context match{
+                      case "home" =>
+                        output = AUDIO_CATEGORIES_HOME(labelAndPreds.toInt)
+                      case "office"=>
+                        output = AUDIO_CATEGORIES_OFFICE(labelAndPreds.toInt)
+                      case "class"=>
+                        output = AUDIO_CATEGORIES_CLASS(labelAndPreds.toInt)
+                      case "outdoor"=>
+                        output = AUDIO_CATEGORIES_OUTDOOR(labelAndPreds.toInt)
+                    }
 
-//        var output = ""
-//        println("server Enter")
-//        while (true) {
-//          val s = server.accept()
-//          if (flag) {
-//            val out = new PrintStream(s.getOutputStream())
-//            println(output)
-//            out.println(output)
-//            out.flush()
-//            flag = false
-//            s.close()
-//
-//          }
-//          else {
-//            println("server UP")
-//            val in = new BufferedSource(s.getInputStream()).getLines()
-//            val input = in.mkString(" ")
-//            //        val  str = in.toString()
-//            //        println("string is: " +" " + input +str )
-//            if (input.contains("ANALYZE")) {
-//
-//              val splitInput = input.split("ANALYZE :")
-//              val context= (splitInput.mkString ).split("-")
-//              println("context is: " + " " + context(0) )
-//            //  val features1 = AudioFeatureExtraction("F:/Downloads/CS5542-Tutorial10-SourceCode/CS5542-Tutorial10-SourceCode/AudioClassification/data/training/bike/hund.wav")
-//              //println("Features from server are:" + features1)
-//              val featureBuilder = StringBuilder.newBuilder
-//              context(1).map(feature => featureBuilder.append(feature))
-//              println("featurebuilder is: " + " " + featureBuilder.toString())
-//              val numClasses = 10
-//              val categoricalFeaturesInfo = Map[Int, Int]()
-//              val numTrees = 10 // Use more in practice.
-//              val featureSubsetStrategy = "auto" // Let the algorithm choose.
-//              val impurity = "gini"
-//              val maxDepth = 4
-//              val maxBins = 32
-//             //  val model = RandomForest.trainClassifier(X_train, numClasses, categoricalFeaturesInfo,
-//              // numTrees, featureSubsetStrategy, impurity, maxDepth, maxBins)
-//
-//             val sameModel = DecisionTreeModel.load(sc, "myDecisionTreeClassificationModelWithFeatures")
-//              //          val labelAndPreds = X_test.map { point =>
-//              //            val prediction = sameModel.predict(point.features)
-//              //            (point.label, prediction)
-//              //          }
-//              // println("what is this"+(featureBuilder.toString().split(';').map(_.toDouble)))
-//              val labelAndPreds = sameModel.predict(Vectors.dense(featureBuilder.toString().split(';').map(_.toDouble)))
-//              println("prediction " + labelAndPreds)
-//              println("Learned classification tree model:\n" + sameModel.toDebugString)
-//              output = AUDIO_CATEGORIES(labelAndPreds.toInt)
-//              flag = true
-//              s.close()
-//            }
-//          }
-//        }
-   //  training data
-    val train = sc.textFile("data/class_Context_TrainingData.txt")
-      val X_train= train.map ( line =>{
-
-          val parts = line.split(':')
-          println(AUDIO_CATEGORIES_CLASS.indexOf(parts(0)).toDouble, Vectors.dense(parts(1).split(';').map(_.toDouble)))
-          LabeledPoint(AUDIO_CATEGORIES_CLASS.indexOf(parts(0)).toDouble, Vectors.dense(parts(1).split(';').map(_.toDouble)))
-
-    })
-
-
-    val test = sc.textFile("data/class_Context_TrainingData.txt")
-    val X_test= train.map ( line =>{
-
-        val parts = line.split(':')
-        println(AUDIO_CATEGORIES_CLASS.indexOf(parts(0)).toDouble, Vectors.dense(parts(1).split(';').map(_.toDouble)))
-        LabeledPoint(AUDIO_CATEGORIES_CLASS.indexOf(parts(0)).toDouble, Vectors.dense(parts(1).split(';').map(_.toDouble)))
-
-    })
-
-    val numClasses = 4
-    val categoricalFeaturesInfo = Map[Int, Int]()
-    val impurity = "gini"
-    val maxDepth = 5
-    val maxBins = 32
-
-    val model = DecisionTree.trainClassifier(X_train, numClasses, categoricalFeaturesInfo,
-      impurity, maxDepth, maxBins)
-
-
-
-    val labelAndPreds = X_test.map { point =>
-      val prediction = model.predict(point.features)
-      (point.label, prediction)
-    }
-    labelAndPreds.foreach(f=>{
-      println("prediction" +f._1 + " Actual Label" + f._2)
-
-    })
-    val testErr = labelAndPreds.filter(r => r._1 != r._2).count.toDouble / X_test.count()
-    println("Test Error = " + testErr)
-    println("Learned classification forest model:\n" + model.toDebugString)
-    val  accuracy = 1.0 * labelAndPreds.filter(x => x._1 == x._2).count() / test.count()
-
-
-
-    println("Prediction and label" + labelAndPreds)
-    println("Accuracy : " + accuracy)
-
-    val metrics = new MulticlassMetrics(labelAndPreds)
-    //println("Confusion Matrix \n \n : "+metrics.confusionMatrix)
-    println("Fmeasure is:"+metrics.fMeasure + "Precision is:" +metrics.precision)
-    // Save and load model
-    model.save(sc, "ContextDecisionTreeClassificationModel_class")
-    //val sameModel = DecisionTreeModel.load(sc, "myDecisionTreeClassificationModelWithFeatures")
-   // sameModel.save(sc, "myRandomForestClassificationModel1")
+                    flag = true
+                    s.close()
+                  }
+            }
+        }
+                                                                       //  training data
+                                                                    //    val train = sc.textFile("data/HomeContext_Training.txt")
+                                                                    //      val X_train= train.map ( line =>{
+                                                                    //      val parts = line.split(':')
+                                                                    //        println(AUDIO_CATEGORIES.indexOf(parts(0)).toDouble, Vectors.dense(parts(1).split(';').map(_.toDouble)))
+                                                                    //        LabeledPoint(AUDIO_CATEGORIES.indexOf(parts(0)).toDouble, Vectors.dense(parts(1).split(';').map(_.toDouble)))
+                                                                    //
+                                                                    //    })
+                                                                    //
+                                                                    //
+                                                                    //    val test = sc.textFile("data/HomeContext_Training.txt")
+                                                                    //    val X_test= train.map ( f = line => {
+                                                                    //      val parts = line.split(':')
+                                                                    //
+                                                                    //        println(AUDIO_CATEGORIES.indexOf(parts(0)).toDouble, Vectors.dense(parts(1).split(';').map(_.toDouble)))
+                                                                    //       LabeledPoint(AUDIO_CATEGORIES.indexOf(parts(0)).toDouble, Vectors.dense(parts(1).split(';').map(_.toDouble)))
+                                                                    //
+                                                                    //    })
+                                                                    //
+                                                                    //    val numClasses = 5
+                                                                    //    val categoricalFeaturesInfo = Map[Int, Int]()
+                                                                    //    val impurity = "gini"
+                                                                    //    val maxDepth = 5
+                                                                    //    val maxBins = 32
+                                                                    //
+                                                                    //    val model = DecisionTree.trainClassifier(X_train, numClasses, categoricalFeaturesInfo,
+                                                                    //      impurity, maxDepth, maxBins)
+                                                                    //
+                                                                    //
+                                                                    //
+                                                                    //    val labelAndPreds = X_test.map { point =>
+                                                                    //      val prediction = model.predict(point.features)
+                                                                    //      (point.label, prediction)
+                                                                    //    }
+                                                                    //    labelAndPreds.foreach(f=>{
+                                                                    //      println("prediction" +f._1 + " Actual Label" + f._2)
+                                                                    //
+                                                                    //    })
+                                                                    //    val testErr = labelAndPreds.filter(r => r._1 != r._2).count.toDouble / X_test.count()
+                                                                    //    println("Test Error = " + testErr)
+                                                                    //    println("Learned classification forest model:\n" + model.toDebugString)
+                                                                    //    val  accuracy = 1.0 * labelAndPreds.filter(x => x._1 == x._2).count() / test.count()
+                                                                    //
+                                                                    //
+                                                                    //
+                                                                    //    println("Prediction and label" + labelAndPreds)
+                                                                    //    println("Accuracy : " + accuracy)
+                                                                    //
+                                                                    //    val metrics = new MulticlassMetrics(labelAndPreds)
+                                                                    //    //println("Confusion Matrix \n \n : "+metrics.confusionMatrix)
+                                                                    //    println("Fmeasure is:"+metrics.fMeasure + "Precision is:" +metrics.precision)
+                                                                    //    // Save and load model
+                                                                    //    model.save(sc, "ContextDecisionTreeClassificationModel_home")
+                                                                    //    val sameModel = DecisionTreeModel.load(sc, "ContextDecisionTreeClassificationModel_home")
+                                                                    //   // sameModel.save(sc, "myRandomForestClassificationModel1")
 
 
   }
@@ -179,7 +180,7 @@ object AudioClassification {
     val f6: Array[Double] = feature(audio, AudioFeature.Compactness)
     val meanCompactness = calculateMean(f6)
     val str = meanZCR + ";" + meanMFCC + ";" + meanSpectralRollOff + ";" + meanPeakValue + ";" + meanRMS + ";" + meanCompactness + ";"
-    //val str = f(0) + ";" + f1(0) + ";" + f2(0) + ";" + f3(0) + ";" + f4(0) + ";"  + f5(0) + ";" + f6(0) + ";"
+
     println("Features extracted are : " + str)
 
 

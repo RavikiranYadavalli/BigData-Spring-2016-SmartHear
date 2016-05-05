@@ -4,7 +4,7 @@
 		module="audioclassification$sources_2.11"
 		revision="1.0"
 		status="integration"
-		publication="20160503230508"
+		publication="20160504021910"
 	/>
 	<configurations>
 		<conf name="compile" visibility="public" description=""/>

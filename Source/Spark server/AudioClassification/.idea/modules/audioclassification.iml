@@ -27,8 +27,8 @@
       <library name="SBT: unmanaged-jars">
         <CLASSES>
           <root url="jar://$MODULE_DIR$/../../lib/UtilityClasses.jar!/" />
-          <root url="jar://$MODULE_DIR$/../../lib/ACE.jar!/" />
           <root url="jar://$MODULE_DIR$/../../lib/jAudio-1.0.4.jar!/" />
+          <root url="jar://$MODULE_DIR$/../../lib/ACE.jar!/" />
         </CLASSES>
         <JAVADOC />
         <SOURCES />

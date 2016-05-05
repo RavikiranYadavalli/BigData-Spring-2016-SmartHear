@@ -4,7 +4,7 @@
 		module="audioclassification-build"
 		revision="0.1-SNAPSHOT"
 		status="integration"
-		publication="20160503230331"
+		publication="20160504021813"
 		e:scalaVersion="2.10" e:sbtVersion="0.13"
 	>
 		<description>
