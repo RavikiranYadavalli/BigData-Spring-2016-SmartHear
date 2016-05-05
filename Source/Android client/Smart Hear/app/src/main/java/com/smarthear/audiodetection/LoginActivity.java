@@ -30,8 +30,7 @@ import android.widget.TextView;
 
 import java.util.ArrayList;
 import java.util.List;
-
-import capturetest.audio.com.audiocapturetest.R;
+import smarthear.com.audiodetection.R;
 
 import static android.Manifest.permission.READ_CONTACTS;
 
