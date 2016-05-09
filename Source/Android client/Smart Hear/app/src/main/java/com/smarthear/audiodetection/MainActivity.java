@@ -36,8 +36,8 @@ import java.io.OutputStreamWriter;
 import java.net.Socket;
 import java.util.ArrayList;
 import java.util.List;
+import smarthear.com.audiodetection.R;
 
-import capturetest.audio.com.audiocapturetest.R;
 import ddf.minim.effects.BandPass;
 import ddf.minim.effects.HighPassSP;
 import ddf.minim.effects.LowPassSP;
